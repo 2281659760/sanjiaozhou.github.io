@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>三角洲行动｜改枪码收藏与管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="description" content="一个本地保存的三角洲行动改枪码收藏与管理工具，支持新增、搜索、过滤、复制、导入/导出JSON。">
+  <style>
+    .glass { backdrop-filter: blur(8px); background: rgba(255,255,255,.7); }
+    .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+  <div class="max-w-6xl mx-auto p-4 md:p-8">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">三角洲行动｜改枪码收藏与管理</h1>
+        <p class="text-slate-300 mt-1">本地保存 · 离线可用 · 一键复制 · 支持导入/导出</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="exportBtn" class="rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-2 font-semibold shadow">导出JSON</button>
+        <label class="rounded-2xl bg-indigo-500 hover:bg-indigo-600 px-4 py-2 font-semibold shadow cursor-pointer">
+          导入JSON<input id="importInput" type="file" accept="application/json" class="hidden">
+        </label>
+        <button id="clearBtn" class="rounded-2xl bg-rose-500 hover:bg-rose-600 px-4 py-2 font-semibold shadow">清空全部</button>
+      </div>
+    </header>
+
+    <!-- Add form -->
+    <section class="glass rounded-3xl p-4 md:p-6 mt-6 text-slate-900">
+      <h2 class="text-xl font-bold mb-3">新增改枪码</h2>
+      <form id="addForm" class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">武器名称</label>
+          <input id="weapon" required placeholder="例：M4A1突击步枪 / AKM" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">模式/地图</label>
+          <input id="mode" placeholder="例：全面战场 / 烽火地带" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium mb-1">改枪码 / 分享码</label>
+          <input id="code" required placeholder="可直接粘贴整段，如：M4A1突击步枪-全面战场-H4sIA... 或 5116089348491576161" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          <p id="codeHint" class="text-xs text-slate-600 mt-1">自动识别数字ID或压缩Base64（如以 H4sIA / eJ 开头）。</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">作者 / 来源（可选）</label>
+          <input id="author" placeholder="自己 / 玩家昵称 / 链接备注" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">标签（逗号分隔，可选）</label>
+          <input id="tags" placeholder="近战, 低后座, 入门" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium mb-1">备注（可选）</label>
+          <textarea id="notes" rows="2" placeholder="例如：需购买补齐某附件；远距离压枪手感佳" class="w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+        </div>
+        <div class="md:col-span-2 flex items-center gap-3">
+          <button class="rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 font-semibold shadow" type="submit">添加</button>
+          <div id="codeTypeBadge" class="text-sm"></div>
+        </div>
+      </form>
+    </section>
+
+    <!-- Toolbar -->
+    <section class="mt-6 grid md:grid-cols-3 gap-4">
+      <div class="glass rounded-3xl p-4 text-slate-900">
+        <label class="block text-sm font-medium">搜索</label>
+        <input id="search" placeholder="按武器/模式/标签/备注搜索" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div class="glass rounded-3xl p-4 text-slate-900">
+        <label class="block text-sm font-medium">按模式过滤</label>
+        <select id="filterMode" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">全部</option>
+          <option>全面战场</option>
+          <option>烽火地带</option>
+          <option>其他</option>
+        </select>
+      </div>
+      <div class="glass rounded-3xl p-4 text-slate-900">
+        <label class="block text-sm font-medium">排序</label>
+        <select id="sortBy" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="time_desc">按添加时间（新→旧）</option>
+          <option value="time_asc">按添加时间（旧→新）</option>
+          <option value="name_asc">按武器名（A→Z）</option>
+          <option value="name_desc">按武器名（Z→A）</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- List -->
+    <section class="mt-4" id="list"></section>
+
+    <footer class="mt-10 text-center text-slate-400 text-sm">
+      <p>提示：数据仅保存在你的浏览器 <code>localStorage</code> 中。清理浏览器数据会导致记录丢失。</p>
+    </footer>
+  </div>
+
+  <template id="cardTpl">
+    <div class="glass rounded-3xl p-4 md:p-5 mb-3 text-slate-900 shadow-lg">
+      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-lg font-bold">{{weapon}}</h3>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white">{{mode}}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white">{{codeType}}</span>
+          </div>
+          <p class="mt-2 break-all font-mono text-xs bg-slate-900/80 text-slate-100 rounded-xl px-3 py-2">{{code}}</p>
+          <p class="mt-2 text-sm text-slate-700">{{notes}}</p>
+          <div class="mt-2 flex flex-wrap gap-2">{{tags}}</div>
+          <div class="mt-2 text-xs text-slate-600">来源：{{author}} · 添加于 {{time}}</div>
+        </div>
+        <div class="flex md:flex-col gap-2 shrink-0">
+          <button class="copyBtn rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-sm">复制改枪码</button>
+          <button class="shareBtn rounded-xl bg-sky-600 hover:bg-sky-700 text-white px-3 py-2 text-sm">分享链接</button>
+          <button class="editBtn rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 text-sm">编辑</button>
+          <button class="delBtn rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 text-sm">删除</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const $ = (s, r=document) => r.querySelector(s);
+    const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+    const storeKey = 'df_gunsmith_codes_v1';
+
+    const state = {
+      items: [],
+      get filtered(){
+        let arr = [...this.items];
+        const q = $('#search').value.trim().toLowerCase();
+        const mf = $('#filterMode').value.trim();
+        const sb = $('#sortBy').value;
+        if(q){
+          arr = arr.filter(x => (x.weapon+x.mode+x.code+x.notes+x.tags.join(',')+x.author).toLowerCase().includes(q));
+        }
+        if(mf){ arr = arr.filter(x => x.mode === mf || (mf==='其他' && x.mode && !['全面战场','烽火地带'].includes(x.mode))); }
+        switch(sb){
+          case 'time_asc': arr.sort((a,b)=>a.time-b.time); break;
+          case 'name_asc': arr.sort((a,b)=>a.weapon.localeCompare(b.weapon)); break;
+          case 'name_desc': arr.sort((a,b)=>b.weapon.localeCompare(a.weapon)); break;
+          default: arr.sort((a,b)=>b.time-a.time);
+        }
+        return arr;
+      }
+    }
+
+    function load(){
+      try { state.items = JSON.parse(localStorage.getItem(storeKey) || '[]'); }
+      catch { state.items = []; }
+    }
+    function save(){ localStorage.setItem(storeKey, JSON.stringify(state.items)); }
+
+    function detectCodeType(raw){
+      const code = raw.trim();
+      // pick last segment after '-' if looks like a code
+      const seg = code.split('-').pop();
+      let type = '未知';
+      if(/^\d{12,22}$/.test(seg)) type = '数字ID';
+      else if(/^(H4sIA|eJ)[A-Za-z0-9+/=]+$/.test(seg)) type = '压缩Base64';
+      return { seg, type };
+    }
+
+    function render(){
+      const list = $('#list');
+      list.innerHTML = '';
+      const tpl = $('#cardTpl').innerHTML;
+      state.filtered.forEach((x, idx) => {
+        const html = tpl
+          .replace('{{weapon}}', esc(x.weapon))
+          .replace('{{mode}}', esc(x.mode || '其他'))
+          .replace('{{codeType}}', esc(x.codeType))
+          .replace('{{code}}', esc(x.code))
+          .replace('{{notes}}', esc(x.notes || ''))
+          .replace('{{author}}', esc(x.author || '未知'))
+          .replace('{{time}}', new Date(x.time).toLocaleString())
+          .replace('{{tags}}', x.tags.map(t=>`<span class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">${esc(t)}</span>`).join('') || '');
+        const wrap = document.createElement('div');
+        wrap.innerHTML = html.trim();
+        const el = wrap.firstElementChild;
+        // Btns
+        $('.copyBtn', el).addEventListener('click', () => copy(x.code));
+        $('.shareBtn', el).addEventListener('click', () => share(x));
+        $('.delBtn', el).addEventListener('click', () => { if(confirm('确定删除该记录吗？')){ state.items = state.items.filter(it=>it.id!==x.id); save(); render(); }});
+        $('.editBtn', el).addEventListener('click', () => editItem(x));
+        list.appendChild(el);
+      });
+      if(!state.filtered.length){
+        list.innerHTML = '<div class="text-center text-slate-300 py-10">暂无记录，先在上面添加一条吧～</div>';
+      }
+    }
+
+    function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    async function copy(text){ try{ await navigator.clipboard.writeText(text); toast('已复制到剪贴板'); } catch{ toast('复制失败，请手动选择复制'); } }
+
+    function toast(msg){
+      const el = document.createElement('div');
+      el.className = 'fixed left-1/2 -translate-x-1/2 bottom-6 bg-black/80 text-white px-4 py-2 rounded-xl shadow z-50';
+      el.textContent = msg; document.body.appendChild(el); setTimeout(()=>el.remove(), 1800);
+    }
+
+    function addItem(e){
+      e.preventDefault();
+      const weapon = $('#weapon').value.trim();
+      const mode = $('#mode').value.trim();
+      const rawCode = $('#code').value.trim();
+      const {seg, type} = detectCodeType(rawCode);
+      const author = $('#author').value.trim();
+      const tags = $('#tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+      const notes = $('#notes').value.trim();
+      if(!weapon || !rawCode){ toast('武器名称和改枪码为必填'); return; }
+      const item = { id: crypto.randomUUID(), weapon, mode, code: seg, raw: rawCode, codeType: type, author, tags, notes, time: Date.now() };
+      state.items.unshift(item); save(); render();
+      $('#addForm').reset(); $('#codeTypeBadge').innerHTML = '';
+      toast('已添加');
+    }
+
+    function editItem(x){
+      // preload form for quick edit
+      $('#weapon').value = x.weapon; $('#mode').value = x.mode; $('#code').value = x.code; $('#author').value = x.author||''; $('#tags').value = x.tags.join(','); $('#notes').value = x.notes||'';
+      $('#codeTypeBadge').innerHTML = `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white">${x.codeType}</span>`;
+      // Replace add behavior with save
+      const btn = $('#addForm button[type="submit"]');
+      btn.textContent = '保存修改';
+      const handler = (e)=>{
+        e.preventDefault();
+        x.weapon = $('#weapon').value.trim();
+        x.mode = $('#mode').value.trim();
+        const {seg, type} = detectCodeType($('#code').value.trim());
+        x.code = seg; x.codeType = type;
+        x.author = $('#author').value.trim();
+        x.tags = $('#tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+        x.notes = $('#notes').value.trim();
+        save(); render();
+        $('#addForm').reset(); btn.textContent = '添加'; btn.removeEventListener('click', handler);
+        $('#codeTypeBadge').innerHTML = '';
+        toast('已保存修改');
+      };
+      btn.addEventListener('click', handler);
+    }
+
+    function share(x){
+      // Encode item as URL hash for quick share (same-origin viewing)
+      const payload = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({weapon:x.weapon, mode:x.mode, code:x.code})))));
+      const url = location.origin + location.pathname + '#i=' + payload;
+      copy(url);
+    }
+
+    function tryImportFromHash(){
+      const m = location.hash.match(/#i=([^&]+)/);
+      if(!m) return;
+      try{
+        const j = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+        if(j && j.weapon && j.code){
+          state.items.unshift({ id: crypto.randomUUID(), weapon:j.weapon, mode:j.mode||'', code:j.code, raw:j.code, codeType: detectCodeType(j.code).type, author:'链接导入', tags:[], notes:'', time: Date.now() });
+          save(); render(); location.hash = '';
+          toast('已从链接导入一条记录');
+        }
+      }catch{}
+    }
+
+    function exportJSON(){
+      const blob = new Blob([JSON.stringify(state.items, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'delta_gunsmith_codes.json'; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function importJSON(file){
+      const reader = new FileReader();
+      reader.onload = () => {
+        try{
+          const arr = JSON.parse(reader.result);
+          if(Array.isArray(arr)){
+            // de-dup by id+code
+            const uniq = new Map();
+            [...state.items, ...arr].forEach(it=>uniq.set((it.id||it.code)+it.code, {...it, id: it.id||crypto.randomUUID()}));
+            state.items = Array.from(uniq.values()); save(); render(); toast('导入完成');
+          }else toast('文件格式不正确');
+        }catch{ toast('解析失败'); }
+      };
+      reader.readAsText(file);
+    }
+
+    // UI Wiring
+    $('#addForm').addEventListener('submit', addItem);
+    $('#search').addEventListener('input', render);
+    $('#filterMode').addEventListener('change', render);
+    $('#sortBy').addEventListener('change', render);
+    $('#exportBtn').addEventListener('click', exportJSON);
+    $('#importInput').addEventListener('change', e=> e.target.files[0] && importJSON(e.target.files[0]));
+    $('#clearBtn').addEventListener('click', ()=>{ if(confirm('确定要清空所有记录吗？此操作不可撤销。')){ state.items = []; save(); render(); }});
+    $('#code').addEventListener('input', (e)=>{
+      const {type} = detectCodeType(e.target.value);
+      $('#codeTypeBadge').innerHTML = type==='未知' ? '' : `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white">${type}</span>`;
+    });
+
+    // Init
+    load(); tryImportFromHash(); render();
+
+    // Optional: preload a few placeholders (仅第一次使用)
+    if(state.items.length === 0){
+      const samples = [
+        {weapon:'M4A1突击步枪', mode:'全面战场', code:'H4sIAAAAAAAA/+', notes:'示例：压缩Base64码开头示意', codeType:'压缩Base64'},
+        {weapon:'AKM突击步枪', mode:'烽火地带', code:'5116089348491576161', notes:'示例：数字ID示意', codeType:'数字ID'},
+      ];
+      samples.forEach(s=> state.items.push({ id: crypto.randomUUID(), author:'示例', tags:['示例'], time: Date.now(), raw:s.code, ...s }));
+      save(); render();
+    }
+  </script>
+</body>
+</html>
